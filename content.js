@@ -13,6 +13,8 @@
   let probesBlocked = 0;
   let fingerprintsBlocked = 0;
   let trackersBlocked = 0;
+  const seenProbes = new Set();
+  const seenTrackers = new Set();
 
   // ── 1. Block extension probing ──────────────────────────────────────
   // LinkedIn's Spectroscopy script probes chrome-extension:// URLs to
@@ -23,14 +25,13 @@
   window.fetch = function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-      probesBlocked++;
-      updateBadge();
+      if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
       return Promise.reject(new TypeError('LinkedIn Shield: extension probe blocked'));
     }
     // Block known tracking endpoints
     if (isTrackerUrl(url)) {
-      trackersBlocked++;
-      updateBadge();
+      const trackerKey = new URL(url, location.href).pathname;
+      if (!seenTrackers.has(trackerKey)) { seenTrackers.add(trackerKey); trackersBlocked++; updateBadge(); }
       return Promise.resolve(new Response('', { status: 204 }));
     }
     return originalFetch.apply(this, args);
@@ -40,15 +41,12 @@
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     if (typeof url === 'string') {
       if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-        probesBlocked++;
-        updateBadge();
-        // Set a flag so send() becomes a no-op
+        if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
         this._shieldBlocked = true;
         return;
       }
       if (isTrackerUrl(url)) {
-        trackersBlocked++;
-        updateBadge();
+        try { const k = new URL(url, location.href).pathname; if (!seenTrackers.has(k)) { seenTrackers.add(k); trackersBlocked++; updateBadge(); } } catch(e) {}
         this._shieldBlocked = true;
         return;
       }
@@ -82,30 +80,33 @@
   // LinkedIn collects 48+ device data points. We add noise to the most
   // sensitive ones without breaking site functionality.
 
-  // Randomize hardwareConcurrency (CPU cores)
-  const realCores = navigator.hardwareConcurrency;
+  // Randomize hardwareConcurrency (CPU cores) — count once
+  const fakeCores = [2, 4, 8][Math.floor(Math.random() * 3)];
+  let cpuCounted = false;
   Object.defineProperty(navigator, 'hardwareConcurrency', {
     get: () => {
-      fingerprintsBlocked++;
-      return [2, 4, 8][Math.floor(Math.random() * 3)];
+      if (!cpuCounted) { fingerprintsBlocked++; cpuCounted = true; updateBadge(); }
+      return fakeCores;
     }
   });
 
-  // Randomize deviceMemory
+  // Randomize deviceMemory — count once
   if ('deviceMemory' in navigator) {
+    const fakeMem = [4, 8, 16][Math.floor(Math.random() * 3)];
+    let memCounted = false;
     Object.defineProperty(navigator, 'deviceMemory', {
       get: () => {
-        fingerprintsBlocked++;
-        return [4, 8, 16][Math.floor(Math.random() * 3)];
+        if (!memCounted) { fingerprintsBlocked++; memCounted = true; updateBadge(); }
+        return fakeMem;
       }
     });
   }
 
-  // Block battery API (reveals charging status / battery level)
+  // Block battery API — count once
   if ('getBattery' in navigator) {
+    let batteryCounted = false;
     navigator.getBattery = () => {
-      fingerprintsBlocked++;
-      updateBadge();
+      if (!batteryCounted) { fingerprintsBlocked++; batteryCounted = true; updateBadge(); }
       return Promise.reject(new Error('LinkedIn Shield: battery API blocked'));
     };
   }
