@@ -1,132 +1,124 @@
 /**
- * LinkedIn Shield — Content Script
- * Runs at document_start on all linkedin.com pages.
+ * LinkedIn Shield — Content Script (MAIN world)
+ * Runs at document_start on all linkedin.com pages and frames.
  *
- * Intercepts and neutralizes extension probing, device fingerprinting,
- * and hidden tracker injection at the JavaScript level.
+ * Intercepts extension probing and device fingerprinting.
+ * Tracker blocking is handled by rules.json at network level.
  */
 
 (function () {
   'use strict';
 
-  const SHIELD_PREFIX = '[LinkedIn Shield]';
-  let probesBlocked = 0;
-  let fingerprintsBlocked = 0;
-  let trackersBlocked = 0;
-  const seenProbes = new Set();
-  const seenTrackers = new Set();
+  // ── Shared state via window (persists across SPA navigations) ──
+  if (window.__linkedinShieldActive) return; // Already running in this context
+  window.__linkedinShieldActive = true;
+
+  const stats = window.__linkedinShieldStats || { probes: 0, fingerprints: 0, trackers: 0 };
+  const seen = window.__linkedinShieldSeen || new Set();
+  window.__linkedinShieldStats = stats;
+  window.__linkedinShieldSeen = seen;
+
+  // Only run full interception in top frame
+  if (window !== window.top) return;
 
   // ── 1. Block extension probing ──────────────────────────────────────
-  // LinkedIn's Spectroscopy script probes chrome-extension:// URLs to
-  // detect installed extensions. We intercept fetch/XMLHttpRequest and
-  // block any request targeting chrome-extension:// or moz-extension://.
 
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-      if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
+      if (!seen.has(url)) { seen.add(url); stats.probes++; syncBadge(); }
       return Promise.resolve(new Response('', { status: 404 }));
     }
-    // Count surveillance endpoints (blocking handled by rules.json at network level)
-    const survPattern = matchSurveillanceUrl(url);
-    if (survPattern && !seenTrackers.has(survPattern)) {
-      seenTrackers.add(survPattern); trackersBlocked++; updateBadge();
-    }
+    // Count surveillance endpoints once
+    const surv = matchSurveillance(url);
+    if (surv && !seen.has('surv:' + surv)) { seen.add('surv:' + surv); stats.trackers++; syncBadge(); }
     return originalFetch.apply(this, args);
   };
 
-  const originalXHROpen = XMLHttpRequest.prototype.open;
+  const origXhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     if (typeof url === 'string') {
       if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-        if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
-        this._shieldBlocked = true;
+        if (!seen.has(url)) { seen.add(url); stats.probes++; syncBadge(); }
+        this._blocked = true;
         return;
       }
-      const xhrSurvPattern = matchSurveillanceUrl(url);
-      if (xhrSurvPattern && !seenTrackers.has(xhrSurvPattern)) {
-        seenTrackers.add(xhrSurvPattern); trackersBlocked++; updateBadge();
-      }
+      const surv = matchSurveillance(url);
+      if (surv && !seen.has('surv:' + surv)) { seen.add('surv:' + surv); stats.trackers++; syncBadge(); }
     }
-    return originalXHROpen.call(this, method, url, ...rest);
+    return origXhrOpen.call(this, method, url, ...rest);
   };
 
-  const originalXHRSend = XMLHttpRequest.prototype.send;
+  const origXhrSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (...args) {
-    if (this._shieldBlocked) return;
-    return originalXHRSend.apply(this, args);
+    if (this._blocked) return;
+    return origXhrSend.apply(this, args);
   };
 
-  // ── 2. Block resource timing probe ──────────────────────────────────
-  // Extensions can also be detected via performance.getEntriesByName()
-  // which reveals loaded resource URLs including extension resources.
+  // ── 2. Block resource timing probes ─────────────────────────────────
 
-  const originalGetEntries = performance.getEntriesByName;
-  if (originalGetEntries) {
+  const origPerfEntries = performance.getEntriesByName;
+  if (origPerfEntries) {
     performance.getEntriesByName = function (name, ...rest) {
       if (typeof name === 'string' && (name.includes('chrome-extension://') || name.includes('moz-extension://'))) {
-        if (!seenProbes.has('perf:' + name)) { seenProbes.add('perf:' + name); probesBlocked++; updateBadge(); }
+        if (!seen.has(name)) { seen.add(name); stats.probes++; syncBadge(); }
         return [];
       }
-      return originalGetEntries.call(this, name, ...rest);
+      return origPerfEntries.call(this, name, ...rest);
     };
   }
 
-  // ── 3. Neuter navigator/device fingerprinting APIs ──────────────────
-  // LinkedIn collects 48+ device data points. We add noise to the most
-  // sensitive ones without breaking site functionality.
+  // ── 3. Fingerprint spoofing (count once per API) ────────────────────
 
-  // Randomize hardwareConcurrency (CPU cores) — count once
   const fakeCores = [2, 4, 8][Math.floor(Math.random() * 3)];
-  let cpuCounted = false;
-  Object.defineProperty(navigator, 'hardwareConcurrency', {
-    get: () => {
-      if (!cpuCounted) { fingerprintsBlocked++; cpuCounted = true; updateBadge(); }
-      return fakeCores;
-    }
-  });
+  const fakeMem = [4, 8, 16][Math.floor(Math.random() * 3)];
 
-  // Randomize deviceMemory — count once
-  if ('deviceMemory' in navigator) {
-    const fakeMem = [4, 8, 16][Math.floor(Math.random() * 3)];
-    let memCounted = false;
-    Object.defineProperty(navigator, 'deviceMemory', {
-      get: () => {
-        if (!memCounted) { fingerprintsBlocked++; memCounted = true; updateBadge(); }
-        return fakeMem;
-      }
-    });
+  if (!seen.has('fp:cpu')) {
+    try {
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => {
+          if (!seen.has('fp:cpu')) { seen.add('fp:cpu'); stats.fingerprints++; syncBadge(); }
+          return fakeCores;
+        }
+      });
+    } catch (e) {} // Already defined
   }
 
-  // Block battery API — count once
+  if ('deviceMemory' in navigator && !seen.has('fp:mem')) {
+    try {
+      Object.defineProperty(navigator, 'deviceMemory', {
+        get: () => {
+          if (!seen.has('fp:mem')) { seen.add('fp:mem'); stats.fingerprints++; syncBadge(); }
+          return fakeMem;
+        }
+      });
+    } catch (e) {}
+  }
+
   if ('getBattery' in navigator) {
-    let batteryCounted = false;
     navigator.getBattery = () => {
-      if (!batteryCounted) { fingerprintsBlocked++; batteryCounted = true; updateBadge(); }
+      if (!seen.has('fp:battery')) { seen.add('fp:battery'); stats.fingerprints++; syncBadge(); }
       return Promise.resolve({ charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1.0, addEventListener: () => {} });
     };
   }
 
-  // ── 4. Block hidden iframes ─────────────────────────────────────────
-  // LinkedIn injects zero-pixel iframes from li.protechts.net (HUMAN Security).
+  // ── 4. Remove surveillance iframes ──────────────────────────────────
 
   const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
         if (node.tagName === 'IFRAME') {
-          const src = node.src || node.getAttribute('src') || '';
-          const isSurveillance = src.includes('protechts.net') || src.includes('li.protechts');
-          if (isSurveillance) {
+          const src = (node.src || '') + (node.getAttribute('src') || '');
+          if (src.includes('protechts.net')) {
             node.remove();
-            if (!seenTrackers.has('iframe:protechts')) { seenTrackers.add('iframe:protechts'); trackersBlocked++; updateBadge(); }
+            if (!seen.has('iframe:protechts')) { seen.add('iframe:protechts'); stats.trackers++; syncBadge(); }
           }
         }
       }
     }
   });
 
-  // Start observing once DOM is ready
   if (document.documentElement) {
     observer.observe(document.documentElement, { childList: true, subtree: true });
   } else {
@@ -135,51 +127,34 @@
     });
   }
 
-  // ── 5. Tracker URL detection ────────────────────────────────────────
+  // ── 5. Surveillance URL matcher ─────────────────────────────────────
 
-  // Only block surveillance-specific endpoints, not general LinkedIn tracking
-  // These are already blocked at network level by rules.json — content script
-  // only counts them, doesn't need to block (avoids retry loops)
-  function matchSurveillanceUrl(url) {
-    const patterns = [
-      'sensorCollect',
-      'protechts.net',
-      'spectroscopy',
-      'browser-id',
-      'fingerprintjs',
-    ];
+  function matchSurveillance(url) {
+    const patterns = ['sensorCollect', 'protechts.net', 'spectroscopy', 'browser-id', 'fingerprintjs'];
     const lower = url.toLowerCase();
-    for (const p of patterns) {
-      if (lower.includes(p)) return p;
-    }
+    for (const p of patterns) { if (lower.includes(p)) return p; }
     return null;
   }
 
-  function isTrackerUrl(url) {
-    return matchSurveillanceUrl(url) !== null;
-  }
+  // ── 6. Badge sync (throttled, max once per second) ──────────────────
 
-  // ── 6. Badge / stats sync (throttled) ──────────────────────────────
-
-  let badgeTimer = null;
-  function updateBadge() {
-    if (badgeTimer) return;
-    badgeTimer = setTimeout(() => {
-      badgeTimer = null;
-      const total = probesBlocked + fingerprintsBlocked + trackersBlocked;
+  let syncTimer = null;
+  function syncBadge() {
+    if (syncTimer) return;
+    syncTimer = setTimeout(() => {
+      syncTimer = null;
+      const total = stats.probes + stats.fingerprints + stats.trackers;
       window.postMessage({
         type: 'linkedin_shield_stats',
-        probes: probesBlocked,
-        fingerprints: fingerprintsBlocked,
-        trackers: trackersBlocked,
+        probes: stats.probes,
+        fingerprints: stats.fingerprints,
+        trackers: stats.trackers,
         total: total,
       }, '*');
-    }, 500);
+    }, 1000);
   }
 
-  // Send initial stats after page settles
-  setTimeout(updateBadge, 2000);
-  setTimeout(updateBadge, 5000);
-  setTimeout(updateBadge, 15000);
+  // Initial sync
+  setTimeout(syncBadge, 3000);
 
 })();
