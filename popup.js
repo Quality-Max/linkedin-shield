@@ -102,13 +102,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const result = document.getElementById('ai-result');
     btn.disabled = true;
     btn.textContent = 'Analyzing...';
-    result.classList.add('visible');
+    result.style.display = 'block';
     result.textContent = 'Connecting to AI...';
+
+    // Check if API key is configured
+    const settings = await chrome.storage.local.get(['ai_api_key', 'ai_provider']);
+    if (!settings.ai_api_key) {
+      result.textContent = 'No API key configured. Click "Settings" below to add one.';
+      btn.disabled = false;
+      btn.textContent = 'Explain with AI';
+      return;
+    }
+
     try {
-      const resp = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'ai_analyze', stats: window._shieldStats || {} }, resolve);
+      const resp = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'ai_analyze', stats: window._shieldStats || {} }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
       });
-      result.textContent = resp?.analysis || resp?.error || 'No response.';
+      result.textContent = resp?.analysis || resp?.error || 'No response from AI.';
     } catch (e) {
       result.textContent = 'Error: ' + e.message;
     }

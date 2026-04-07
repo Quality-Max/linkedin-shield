@@ -54,13 +54,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'ai_analyze') {
-    // Must call sendResponse asynchronously — return true to keep channel open
-    handleAIAnalysis(msg.stats).then(result => {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after 30s')), 30000));
+    Promise.race([handleAIAnalysis(msg.stats), timeout]).then(result => {
       sendResponse(result);
     }).catch(err => {
       sendResponse({ error: `Analysis failed: ${err.message}` });
     });
-    return true; // keep message channel open for async response
+    return true;
   }
 });
 
