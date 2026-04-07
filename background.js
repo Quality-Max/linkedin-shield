@@ -83,56 +83,36 @@ async function handleAIAnalysis(stats) {
 
 In 3-4 sentences, explain what data LinkedIn was trying to collect, the privacy risk if this wasn't blocked, and what this data could be used for. Be direct and factual.`;
 
+  // Anthropic's x-api-key header triggers CORS preflight which fails from extensions
   if (provider === 'anthropic') {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return { error: `Anthropic API error (${resp.status}): ${errText.slice(0, 100)}` };
-    }
-
-    const data = await resp.json();
-    return { analysis: data.content?.[0]?.text || 'No response.' };
-
-  } else {
-    // OpenAI-compatible (works with OpenAI, QMax/Qwen, DeepSeek, etc.)
-    const apiBase = (result.ai_api_base || 'https://api.openai.com/v1').replace(/\/$/, '');
-    const model = result.ai_model || 'gpt-4o-mini';
-
-    const resp = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: 200,
-        messages: [
-          { role: 'system', content: 'You are a privacy security analyst. Be direct and factual.' },
-          { role: 'user', content: prompt },
-        ],
-      }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return { error: `${provider} API error (${resp.status}): ${errText.slice(0, 100)}` };
-    }
-
-    const data = await resp.json();
-    return { analysis: data.choices?.[0]?.message?.content || 'No response.' };
+    return { error: 'Claude is not available from browser extensions (CORS restriction). Please select OpenAI or QMax in Settings.' };
   }
+
+  // OpenAI-compatible format (works with OpenAI, QMax/Qwen, DeepSeek, etc.)
+  const apiBase = (result.ai_api_base || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const model = result.ai_model || 'gpt-4o-mini';
+
+  const resp = await fetch(`${apiBase}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 200,
+      messages: [
+        { role: 'system', content: 'You are a privacy security analyst. Be direct and factual.' },
+        { role: 'user', content: prompt },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    return { error: `API error (${resp.status}): ${errText.slice(0, 150)}` };
+  }
+
+  const data = await resp.json();
+  return { analysis: data.choices?.[0]?.message?.content || 'No response.' };
 }
