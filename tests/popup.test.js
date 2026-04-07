@@ -140,11 +140,11 @@ describe('Popup — AI Button', () => {
     expect(model).toBe('claude-haiku-4-5-20251001');
   });
 
-  it('uses QMax provider settings', () => {
-    const provider = 'qmax';
+  it('uses Qwen provider settings', () => {
+    const provider = 'qwen';
     const apiBase =
-      provider === 'qmax' ? 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' : 'https://api.openai.com/v1';
-    const model = provider === 'qmax' ? 'qwen3.5-flash' : 'gpt-4o-mini';
+      provider === 'qwen' ? 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' : 'https://api.openai.com/v1';
+    const model = provider === 'qwen' ? 'qwen3.5-flash' : 'gpt-4o-mini';
     expect(apiBase).toBe('https://dashscope-intl.aliyuncs.com/compatible-mode/v1');
     expect(model).toBe('qwen3.5-flash');
   });
@@ -212,10 +212,10 @@ describe('Popup — Settings', () => {
     expect(shouldSave).toBeFalsy();
   });
 
-  it('sets QMax-specific settings when provider is qmax', () => {
-    const provider = 'qmax';
+  it('sets Qwen-specific settings when provider is qmax', () => {
+    const provider = 'qwen';
     const toSave = { ai_provider: provider };
-    if (provider === 'qmax') {
+    if (provider === 'qwen') {
       toSave.ai_api_base = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
       toSave.ai_model = 'qwen3.5-flash';
     }
@@ -223,10 +223,10 @@ describe('Popup — Settings', () => {
     expect(toSave.ai_model).toBe('qwen3.5-flash');
   });
 
-  it('does not set QMax settings for other providers', () => {
+  it('does not set Qwen settings for other providers', () => {
     const provider = 'openai';
     const toSave = { ai_provider: provider };
-    if (provider === 'qmax') {
+    if (provider === 'qwen') {
       toSave.ai_api_base = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
     }
     expect(toSave.ai_api_base).toBeUndefined();

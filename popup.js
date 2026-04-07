@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const toSave = { ai_provider: provider };
     if (key && !key.startsWith('••')) {
       toSave.ai_api_key = key;
-      if (provider === 'qmax') {
+      if (provider === 'qwen') {
         toSave.ai_api_base = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
         toSave.ai_model = 'qwen3.5-flash';
       }
