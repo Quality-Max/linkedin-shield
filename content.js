@@ -11,8 +11,9 @@
 (function () {
   'use strict';
 
-  if (window.__linkedinShieldActive) return;
-  window.__linkedinShieldActive = true;
+  const SHIELD_KEY = Symbol.for('__linkedinShieldActive');
+  if (window[SHIELD_KEY]) return;
+  Object.defineProperty(window, SHIELD_KEY, { value: true, writable: false, configurable: false });
   if (window !== window.top) return;
 
   let probeCount = 0;
@@ -37,7 +38,7 @@
         if (blockedUrls.length < 10) blockedUrls.push(url.substring(0, 80));
       }
       return Reflect.apply(target, thisArg, args);
-    }
+    },
   });
   Object.defineProperty(window, 'fetch', { value: fetchProxy, writable: true, configurable: true });
 
@@ -49,16 +50,24 @@
       }
     });
     po.observe({ type: 'resource', buffered: true });
-  } catch (e) {}
+  } catch (_e) {}
 
   // ── 3. Fingerprint spoofing ─────────────────────────────────────────
-  try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 }); } catch (e) {}
-  try { if ('deviceMemory' in navigator) Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 }); } catch (e) {}
+  try {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 });
+  } catch (_e) {}
+  try {
+    if ('deviceMemory' in navigator) Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+  } catch (_e) {}
   if ('getBattery' in navigator) {
-    navigator.getBattery = () => Promise.resolve({
-      charging: true, chargingTime: 0, dischargingTime: Infinity,
-      level: 1.0, addEventListener: () => {}
-    });
+    navigator.getBattery = () =>
+      Promise.resolve({
+        charging: true,
+        chargingTime: 0,
+        dischargingTime: Infinity,
+        level: 1.0,
+        addEventListener: () => {},
+      });
   }
 
   // ── 4. Remove surveillance iframes ──────────────────────────────────
@@ -93,11 +102,10 @@
       },
     };
     document.documentElement.setAttribute('data-linkedin-shield', JSON.stringify(data));
-    window.postMessage({ type: 'linkedin_shield_stats', ...data }, '*');
+    window.postMessage({ type: 'linkedin_shield_stats', ...data }, window.location.origin);
   }
 
   setInterval(writeStats, 3000);
   setTimeout(writeStats, 2000);
   setTimeout(writeStats, 5000);
-
 })();

@@ -24,8 +24,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const attr = document.documentElement.getAttribute('data-linkedin-shield');
         if (attr) return attr;
         // If no attr yet, check if shield is active and return defaults
-        if (window.__linkedinShieldActive) {
-          return JSON.stringify({ probes: 0, fingerprints: 3, trackers: 2, total: 5, knownScanSize: 6236, context: { fingerprintApis: ['CPU','RAM','Battery'], detectionMethod: 'active' } });
+        if (window[Symbol.for('__linkedinShieldActive')]) {
+          return JSON.stringify({
+            probes: 0,
+            fingerprints: 3,
+            trackers: 2,
+            total: 5,
+            knownScanSize: 6236,
+            context: { fingerprintApis: ['CPU', 'RAM', 'Battery'], detectionMethod: 'active' },
+          });
         }
         return null;
       },
@@ -58,24 +65,59 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('probes-count').textContent = showKnown ? '~6.2K' : probes;
   document.getElementById('fingerprints-count').textContent = stats.fingerprints || 3;
   document.getElementById('trackers-count').textContent = stats.trackers || 2;
-  document.getElementById('total-count').textContent = showKnown ? '~6.2K' : (stats.total || 0);
+  document.getElementById('total-count').textContent = showKnown ? '~6.2K' : stats.total || 0;
 
   // Context section
   const section = document.getElementById('context-section');
   const details = document.getElementById('context-details');
   section.style.display = 'block';
 
-  let html = '';
-  html += `<div style="margin-bottom:8px;"><span style="color:#ef4444;">&#9632;</span> <strong>${showKnown ? '~6,236' : probes} extensions scanned</strong> <span style="font-size:9px;color:#56546a;">${showKnown ? '(BrowserGate)' : '(detected)'}</span></div>`;
-  html += `<div style="font-size:10px; color:#56546a; margin-left:14px; margin-bottom:8px;">LinkedIn checks for job search tools, ad blockers, password managers, VPNs, developer tools, and accessibility aids</div>`;
-  html += `<div style="margin-bottom:6px;"><span style="color:#f59e0b;">&#9632;</span> <strong>${stats.fingerprints || 3} fingerprint APIs spoofed</strong> — CPU cores, RAM, battery</div>`;
-  html += `<div style="margin-bottom:6px;"><span style="color:#6366f1;">&#9632;</span> <strong>${stats.trackers || 2} surveillance endpoints blocked</strong> — sensorCollect + HUMAN Security</div>`;
-  details.innerHTML = html;
+  function addContextRow(parent, color, boldText, suffix) {
+    const row = document.createElement('div');
+    row.style.marginBottom = '6px';
+    const dot = document.createElement('span');
+    dot.style.color = color;
+    dot.textContent = '\u25A0 ';
+    const strong = document.createElement('strong');
+    strong.textContent = boldText;
+    row.appendChild(dot);
+    row.appendChild(strong);
+    if (suffix) row.appendChild(document.createTextNode(suffix));
+    parent.appendChild(row);
+    return row;
+  }
+
+  details.textContent = '';
+  const probeRow = addContextRow(details, '#ef4444', `${showKnown ? '~6,236' : probes} extensions scanned`);
+  probeRow.style.marginBottom = '8px';
+  const probeTag = document.createElement('span');
+  probeTag.style.cssText = 'font-size:9px;color:#56546a;margin-left:4px;';
+  probeTag.textContent = showKnown ? '(BrowserGate research)' : '(detected)';
+  probeRow.appendChild(probeTag);
+
+  const desc = document.createElement('div');
+  desc.style.cssText = 'font-size:10px;color:#56546a;margin-left:14px;margin-bottom:8px;';
+  desc.textContent =
+    'LinkedIn checks for job search tools, ad blockers, password managers, VPNs, developer tools, and accessibility aids';
+  details.appendChild(desc);
+
+  addContextRow(
+    details,
+    '#f59e0b',
+    `${stats.fingerprints || 3} fingerprint APIs spoofed`,
+    ' \u2014 CPU cores, RAM, battery',
+  );
+  addContextRow(
+    details,
+    '#6366f1',
+    `${stats.trackers || 2} surveillance endpoints blocked`,
+    ' \u2014 sensorCollect + HUMAN Security',
+  );
 
   window._shieldStats = stats;
 
   // Poll for live updates every 3 seconds
-  setInterval(async () => {
+  const pollInterval = setInterval(async () => {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -93,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           window._shieldStats = live;
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
   }, 3000);
 
   // AI button
@@ -115,16 +157,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const resp = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: 'ai_analyze', stats: window._shieldStats || {} }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(response);
-          }
+      result.textContent = `Calling ${settings.ai_provider || 'anthropic'} API...`;
+
+      // Call AI directly from popup instead of background (avoids message passing issues)
+      const provider = settings.ai_provider || 'anthropic';
+      const apiKey = settings.ai_api_key;
+      const s = window._shieldStats || {};
+
+      const prompt = `A user visited LinkedIn. LinkedIn Shield blocked: ${s.probes || '~6,236'} extension probes, ${s.fingerprints || 3} fingerprint APIs spoofed, ${s.trackers || 2} tracker endpoints blocked. Explain in 3-4 sentences what LinkedIn was trying to collect, the privacy risk, and what this data could be used for. Be direct.`;
+
+      let text = '';
+
+      if (provider === 'anthropic') {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 250,
+            messages: [{ role: 'user', content: prompt }],
+          }),
         });
-      });
-      result.textContent = resp?.analysis || resp?.error || 'No response from AI.';
+        const data = await resp.json();
+        text = data.content?.[0]?.text || data.error?.message || JSON.stringify(data).substring(0, 200);
+      } else {
+        const apiBase = (await chrome.storage.local.get('ai_api_base')).ai_api_base || 'https://api.openai.com/v1';
+        const model = (await chrome.storage.local.get('ai_model')).ai_model || 'gpt-4o-mini';
+        const resp = await fetch(`${apiBase}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            max_tokens: 250,
+            messages: [
+              { role: 'system', content: 'You are a privacy analyst. Be direct.' },
+              { role: 'user', content: prompt },
+            ],
+          }),
+        });
+        const data = await resp.json();
+        text = data.choices?.[0]?.message?.content || data.error?.message || JSON.stringify(data).substring(0, 200);
+      }
+
+      result.textContent = text;
     } catch (e) {
       result.textContent = 'Error: ' + e.message;
     }
@@ -135,16 +215,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Share button
   document.getElementById('share-btn').addEventListener('click', () => {
     const s = window._shieldStats || {};
+    const probeText =
+      s.probes > 0
+        ? `${s.probes} extension probes detected & blocked`
+        : '~6,236 known extension probes blocked (BrowserGate research)';
     let text = `LinkedIn Shield blocked surveillance on my last visit:\n\n`;
-    text += `🔍 ~6,236 extension probes (LinkedIn scans for installed extensions)\n`;
-    text += `🖥️ 3 device fingerprints spoofed (CPU, RAM, battery)\n`;
+    text += `🔍 ${probeText}\n`;
+    text += `🖥️ ${s.fingerprints || 3} device fingerprints spoofed (CPU, RAM, battery)\n`;
     text += `🛡️ ${s.trackers || 2} tracker endpoints blocked\n`;
     text += `\nLinkedIn checks for: job search tools, ad blockers, password managers, VPNs, accessibility aids, developer tools\n`;
     text += `\nOpen-source: github.com/Quality-Max/linkedin-shield`;
     navigator.clipboard.writeText(text).then(() => {
       const btn = document.getElementById('share-btn');
       btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = 'Share Results'; }, 2000);
+      setTimeout(() => {
+        btn.textContent = 'Share Results';
+      }, 2000);
     });
   });
 
@@ -171,6 +257,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     await chrome.storage.local.set(toSave);
     document.getElementById('settings-msg').textContent = 'Saved!';
-    setTimeout(() => { document.getElementById('settings-msg').textContent = ''; }, 2000);
+    setTimeout(() => {
+      document.getElementById('settings-msg').textContent = '';
+    }, 2000);
   });
+
+  // Clean up polling when popup closes
+  window.addEventListener('unload', () => clearInterval(pollInterval));
 });

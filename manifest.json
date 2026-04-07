@@ -1,14 +1,9 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Shield",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Block LinkedIn's hidden extension scanning, device fingerprinting, and tracker probes. Open-source privacy protection.",
-  "permissions": [
-    "storage",
-    "declarativeNetRequest",
-    "scripting",
-    "webNavigation"
-  ],
+  "permissions": ["storage", "declarativeNetRequest", "scripting", "webNavigation"],
   "host_permissions": [
     "*://*.linkedin.com/*",
     "*://*.protechts.net/*",
