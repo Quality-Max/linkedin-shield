@@ -43,7 +43,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'get_stats') {
-    sendResponse(tabStats[msg.tabId] || { probes: 0, fingerprints: 0, trackers: 0, total: 0 });
+    // Try exact tab first, then fall back to most recent LinkedIn tab stats
+    let result = tabStats[msg.tabId];
+    if (!result || result.total === 0) {
+      const latest = Object.values(tabStats).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      if (latest && latest.total > 0) result = latest;
+    }
+    sendResponse(result || { probes: 0, fingerprints: 0, trackers: 0, total: 0 });
     return true;
   }
 
