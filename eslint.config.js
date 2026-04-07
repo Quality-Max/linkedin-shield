@@ -22,6 +22,8 @@ export default [
         Promise: 'readonly',
         MutationObserver: 'readonly',
         PerformanceObserver: 'readonly',
+        XMLHttpRequest: 'readonly',
+        performance: 'readonly',
         URL: 'readonly',
         // Chrome Extension
         chrome: 'readonly',

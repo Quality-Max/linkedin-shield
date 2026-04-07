@@ -64,15 +64,45 @@
   });
   Object.defineProperty(window, 'fetch', { value: fetchProxy, writable: true, configurable: true });
 
-  // ── 2. PerformanceObserver (backup counting) ────────────────────────
-  try {
-    const po = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (entry.name && entry.name.includes('chrome-extension://')) probeCount++;
+  // ── 2. PerformanceObserver + periodic scan for extension probes ─────
+  const seenEntries = new Set();
+  function countPerfEntries(entries) {
+    for (const entry of entries) {
+      if (entry.name && entry.name.includes('chrome-extension://') && !seenEntries.has(entry.name)) {
+        seenEntries.add(entry.name);
+        probeCount++;
+        if (probedExtensions.length < 50) {
+          const m = entry.name.match(/chrome-extension:\/\/([^/]+)/);
+          if (m && m[1] !== 'invalid') probedExtensions.push(m[1]);
+        }
       }
-    });
+    }
+  }
+  try {
+    const po = new PerformanceObserver((list) => countPerfEntries(list.getEntries()));
     po.observe({ type: 'resource', buffered: true });
   } catch (_e) {}
+  // Periodic scan catches entries the observer may have missed
+  setInterval(() => {
+    try {
+      countPerfEntries(performance.getEntriesByType('resource'));
+    } catch (_e) {}
+  }, 2000);
+
+  // ── 2b. Intercept XMLHttpRequest (LinkedIn may use XHR for probes) ──
+  const nativeXHROpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (typeof url === 'string' && (url.includes('chrome-extension://') || url.includes('moz-extension://'))) {
+      probeCount++;
+      if (probedExtensions.length < 50) {
+        const m = url.match(/(?:chrome|moz)-extension:\/\/([^/]+)/);
+        if (m && m[1] !== 'invalid') probedExtensions.push(m[1]);
+      }
+      // Abort silently — don't actually send
+      return;
+    }
+    return nativeXHROpen.call(this, method, url, ...rest);
+  };
 
   // ── 3. Fingerprint spoofing ─────────────────────────────────────────
   try {
