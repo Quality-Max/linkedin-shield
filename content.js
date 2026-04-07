@@ -16,6 +16,19 @@
   Object.defineProperty(window, SHIELD_KEY, { value: true, writable: false, configurable: false });
   if (window !== window.top) return;
 
+  // ── 0. Suppress LinkedIn's noisy SDUI console warnings ──────────────
+  const nativeWarn = console.warn;
+  const nativeError = console.error;
+  const sduiFilter = /BooleanExpression with operator|Attribute .* could not be converted to a proto/;
+  console.warn = function (...args) {
+    if (typeof args[0] === 'string' && sduiFilter.test(args[0])) return;
+    return nativeWarn.apply(console, args);
+  };
+  console.error = function (...args) {
+    if (typeof args[0] === 'string' && sduiFilter.test(args[0])) return;
+    return nativeError.apply(console, args);
+  };
+
   let probeCount = 0;
   let iframesRemoved = 0;
   const probedExtensions = [];

@@ -6,7 +6,6 @@
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   if (event.data?.type === 'linkedin_shield_stats') {
-    console.log('[LinkedIn Shield Bridge] Relaying stats:', event.data.probes, 'probes');
     try {
       chrome.runtime.sendMessage({
         type: 'shield_stats',
