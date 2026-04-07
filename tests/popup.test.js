@@ -4,34 +4,30 @@
 import { describe, it, expect } from 'vitest';
 
 describe('Popup — Stats Display', () => {
-  it('shows ~6.2K when probes is 0 (research-based fallback)', () => {
+  it('shows 0 when no probes detected', () => {
     const probes = 0;
-    const showKnown = probes === 0;
-    expect(showKnown).toBe(true);
-    expect(showKnown ? '~6.2K' : probes).toBe('~6.2K');
+    expect(probes).toBe(0);
   });
 
   it('shows actual probe count when probes > 0', () => {
     const probes = 150;
-    const showKnown = probes === 0;
-    expect(showKnown).toBe(false);
-    expect(showKnown ? '~6.2K' : probes).toBe(150);
+    expect(probes).toBe(150);
   });
 
-  it('defaults fingerprints to 3 when missing', () => {
+  it('defaults fingerprints to 0 when missing', () => {
     const stats = {};
-    expect(stats.fingerprints || 3).toBe(3);
+    expect(stats.fingerprints || 0).toBe(0);
   });
 
-  it('defaults trackers to 2 when missing', () => {
+  it('defaults trackers to 0 when missing', () => {
     const stats = {};
-    expect(stats.trackers || 2).toBe(2);
+    expect(stats.trackers || 0).toBe(0);
   });
 
   it('uses stats values when present', () => {
     const stats = { fingerprints: 5, trackers: 8 };
-    expect(stats.fingerprints || 3).toBe(5);
-    expect(stats.trackers || 2).toBe(8);
+    expect(stats.fingerprints || 0).toBe(5);
+    expect(stats.trackers || 0).toBe(8);
   });
 });
 
@@ -51,21 +47,10 @@ describe('Popup — Stats Parsing', () => {
     expect(stats.context.detectionMethod).toBe('live');
   });
 
-  it('creates valid fallback stats when no DOM data', () => {
-    const stats = {
-      probes: 0,
-      fingerprints: 3,
-      trackers: 2,
-      total: 5,
-      knownScanSize: 6236,
-      context: {
-        fingerprintApis: ['navigator.hardwareConcurrency', 'navigator.deviceMemory', 'navigator.getBattery()'],
-        detectionMethod: 'research-based',
-      },
-    };
-    expect(stats.total).toBe(5);
-    expect(stats.context.fingerprintApis).toHaveLength(3);
-    expect(stats.context.detectionMethod).toBe('research-based');
+  it('creates zero-value fallback stats when no DOM data', () => {
+    const stats = { probes: 0, fingerprints: 0, trackers: 0, total: 0 };
+    expect(stats.total).toBe(0);
+    expect(stats.probes).toBe(0);
   });
 
   it('handles malformed JSON gracefully', () => {
@@ -249,22 +234,16 @@ describe('Popup — Settings', () => {
 });
 
 describe('Popup — Share Text', () => {
-  it('uses live stats when probes > 0', () => {
-    const s = { probes: 42, fingerprints: 3, trackers: 5 };
-    const probeText =
-      s.probes > 0
-        ? `${s.probes} extension probes detected & blocked`
-        : '~6,236 known extension probes blocked (BrowserGate research)';
-    expect(probeText).toBe('42 extension probes detected & blocked');
+  it('shows real probe count in share text', () => {
+    const s = { probes: 42 };
+    const probeText = `${s.probes || 0} extension probes blocked`;
+    expect(probeText).toBe('42 extension probes blocked');
   });
 
-  it('uses research fallback when probes is 0', () => {
-    const s = { probes: 0, trackers: 2 };
-    const probeText =
-      s.probes > 0
-        ? `${s.probes} extension probes detected & blocked`
-        : '~6,236 known extension probes blocked (BrowserGate research)';
-    expect(probeText).toContain('BrowserGate research');
+  it('shows 0 when no probes detected', () => {
+    const s = { probes: 0 };
+    const probeText = `${s.probes || 0} extension probes blocked`;
+    expect(probeText).toBe('0 extension probes blocked');
   });
 
   it('includes github link', () => {
