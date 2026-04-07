@@ -83,14 +83,40 @@ async function handleAIAnalysis(stats) {
 
 In 3-4 sentences, explain what data LinkedIn was trying to collect, the privacy risk if this wasn't blocked, and what this data could be used for. Be direct and factual.`;
 
-  // Anthropic's x-api-key header triggers CORS preflight which fails from extensions
+  let apiBase, model, headers;
+
   if (provider === 'anthropic') {
-    return { error: 'Claude is not available from browser extensions (CORS restriction). Please select OpenAI or QMax in Settings.' };
+    apiBase = 'https://api.anthropic.com/v1';
+    model = 'claude-haiku-4-5-20251001';
+    headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    };
+
+    const resp = await fetch(`${apiBase}/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        max_tokens: 200,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      return { error: `Claude API error (${resp.status}): ${errText.slice(0, 150)}` };
+    }
+
+    const data = await resp.json();
+    return { analysis: data.content?.[0]?.text || 'No response.' };
   }
 
   // OpenAI-compatible format (works with OpenAI, QMax/Qwen, DeepSeek, etc.)
-  const apiBase = (result.ai_api_base || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = result.ai_model || 'gpt-4o-mini';
+  apiBase = (result.ai_api_base || 'https://api.openai.com/v1').replace(/\/$/, '');
+  model = result.ai_model || 'gpt-4o-mini';
 
   const resp = await fetch(`${apiBase}/chat/completions`, {
     method: 'POST',
