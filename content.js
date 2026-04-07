@@ -90,7 +90,7 @@
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (!node.tagName) continue;
-        const src = node.src || node.href || '';
+        const src = String(node.src || node.href || '');
         if (src.includes('chrome-extension://')) {
           probeCount++;
           resetScanTimer();
