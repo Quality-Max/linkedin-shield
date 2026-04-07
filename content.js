@@ -20,7 +20,7 @@
   const nativeWarn = console.warn;
   const nativeError = console.error;
   const linkedInNoise =
-    /BooleanExpression with operator|Attribute .* could not be converted to a proto|Minified React error|VIDEOJS: WARN|Highcharts warning/;
+    /BooleanExpression with operator|Attribute .* could not be converted to a proto|Minified React error|VIDEOJS: WARN|Highcharts warning|^network error$/i;
   function isLinkedInNoise(args) {
     const first = args[0];
     if (typeof first === 'string' && linkedInNoise.test(first)) return true;
