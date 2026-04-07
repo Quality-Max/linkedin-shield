@@ -166,8 +166,14 @@
     window.postMessage({ type: 'linkedin_shield_stats', ...statsData }, '*');
   }
 
-  // Fallback timers
-  setTimeout(() => { if (!scanComplete) finalizeScan(); }, 8000);
+  // Keep updating stats periodically (LinkedIn scans at different times)
+  setTimeout(sendStats, 5000);
+  setTimeout(sendStats, 10000);
   setTimeout(sendStats, 20000);
+  setTimeout(sendStats, 40000);
+  // Also update on any probe activity
+  setInterval(() => {
+    if (probeCount > 0) sendStats();
+  }, 3000);
 
 })();

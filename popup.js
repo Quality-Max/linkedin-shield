@@ -36,8 +36,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {}
   }
 
-  // Render stats
-  if (stats && stats.total > 0) {
+  // Render stats (show even if some counts are 0)
+  if (stats) {
     document.getElementById('probes-count').textContent = stats.probes || 0;
     document.getElementById('fingerprints-count').textContent = stats.fingerprints || 0;
     document.getElementById('trackers-count').textContent = stats.trackers || 0;
