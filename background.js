@@ -46,8 +46,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// Track blocked requests via declarativeNetRequest
-if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
+// Track blocked requests via declarativeNetRequest (only in dev mode with Feedback permission)
+if (chrome.declarativeNetRequest?.onRuleMatchedDebug) {
   chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((info) => {
     const tabId = info.request.tabId;
     if (tabId > 0) {
@@ -56,12 +56,12 @@ if (chrome.declarativeNetRequest.onRuleMatchedDebug) {
       }
       tabStats[tabId].trackers++;
       tabStats[tabId].total++;
-
       const total = tabStats[tabId].total;
       chrome.action.setBadgeText({ text: total > 0 ? String(total) : '', tabId });
       chrome.action.setBadgeBackgroundColor({ color: total > 50 ? '#ef4444' : total > 10 ? '#f59e0b' : '#22c55e', tabId });
     }
   });
+  } catch (e) { /* Feedback permission not granted — debug listener unavailable */ }
 }
 
 // Clean up tab stats when tab closes
@@ -81,14 +81,16 @@ async function handleAIAnalysis(stats) {
   }
 
   const ctx = stats.context || {};
-  const extSample = (ctx.extensionIds || []).slice(0, 5).join(', ') || 'none captured';
+  const extSample = (ctx.extensionIds || []).slice(0, 10).join(', ') || 'none captured';
+  const matchedNames = (ctx.matchedExtensions || []).slice(0, 10).map(e => `${e.name} (${e.category})`).join(', ') || 'lookup not available';
   const blockedSample = (ctx.blockedUrls || []).join('\n  ') || 'none';
   const fpApis = (ctx.fingerprintApis || []).join(', ') || 'none';
 
   const prompt = `You are a privacy security analyst. A user visited LinkedIn and the following surveillance was detected and blocked:
 
 EXTENSION PROBING: ${stats.probes || 0} unique chrome-extension:// URLs probed (LinkedIn checking which extensions are installed)
-Sample extension IDs probed: ${extSample}
+Known extensions LinkedIn checked for: ${matchedNames}
+Sample raw extension IDs: ${extSample}
 
 DEVICE FINGERPRINTING: ${stats.fingerprints || 0} APIs intercepted and spoofed: ${fpApis}
 
