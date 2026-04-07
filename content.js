@@ -116,7 +116,7 @@
     let batteryCounted = false;
     navigator.getBattery = () => {
       if (!batteryCounted) { fingerprintsBlocked++; batteryCounted = true; updateBadge(); }
-      return Promise.reject(new Error('LinkedIn Shield: battery API blocked'));
+      return Promise.resolve({ charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1.0, addEventListener: () => {} });
     };
   }
 
