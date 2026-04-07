@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Format check
+        run: npx prettier --check '**/*.{js,json,md,html}'
+
+      - name: Syntax check
+        run: |
+          node --check background.js
+          node --check content.js
+          node --check popup.js
+          node --check bridge.js
+          node --check known-extensions.js
+
+      - name: Tests
+        run: npm test

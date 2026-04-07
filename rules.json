@@ -1,0 +1,51 @@
+[
+  {
+    "id": 2,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "*sensorCollect*",
+      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
+      "resourceTypes": ["xmlhttprequest", "ping", "other"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "*protechts.net*",
+      "resourceTypes": ["sub_frame", "script", "xmlhttprequest", "image", "ping", "other"]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "*spectroscopy*",
+      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
+      "resourceTypes": ["script", "xmlhttprequest"]
+    }
+  },
+  {
+    "id": 6,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "*browser-id*",
+      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
+      "resourceTypes": ["xmlhttprequest", "ping"]
+    }
+  },
+  {
+    "id": 7,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "*fingerprintjs*",
+      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
+      "resourceTypes": ["script", "xmlhttprequest"]
+    }
+  }
+]

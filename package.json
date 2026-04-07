@@ -1,0 +1,44 @@
+{
+  "name": "linkedin-shield",
+  "version": "1.0.0",
+  "description": "Block LinkedIn's hidden extension scanning, device fingerprinting, and tracker probes.",
+  "main": "background.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write '**/*.{js,json,md,html}'",
+    "format:check": "prettier --check '**/*.{js,json,md,html}'",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,html}": [
+      "prettier --write"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Quality-Max/linkedin-shield.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Quality-Max/linkedin-shield/issues"
+  },
+  "homepage": "https://github.com/Quality-Max/linkedin-shield#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.0.2",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1",
+    "vitest": "^4.1.3"
+  }
+}

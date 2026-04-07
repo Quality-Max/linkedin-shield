@@ -1,0 +1,5 @@
+_metadata/
+*.zip
+*.crx
+.DS_Store
+node_modules/
