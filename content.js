@@ -160,17 +160,14 @@
 
   function updateBadge() {
     const total = probesBlocked + fingerprintsBlocked + trackersBlocked;
-    try {
-      chrome.runtime.sendMessage({
-        type: 'shield_stats',
-        probes: probesBlocked,
-        fingerprints: fingerprintsBlocked,
-        trackers: trackersBlocked,
-        total: total,
-      });
-    } catch (e) {
-      // Extension context may be invalidated
-    }
+    // Post to bridge.js (ISOLATED world) which relays to background
+    window.postMessage({
+      type: 'linkedin_shield_stats',
+      probes: probesBlocked,
+      fingerprints: fingerprintsBlocked,
+      trackers: trackersBlocked,
+      total: total,
+    }, '*');
   }
 
   // Send initial stats after page settles
