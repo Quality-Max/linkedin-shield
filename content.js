@@ -21,23 +21,12 @@
   // detect installed extensions. We intercept fetch/XMLHttpRequest and
   // block any request targeting chrome-extension:// or moz-extension://.
 
-  // Debug: log every 100th probe to console
-  let _debugCounter = 0;
-
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-      if (!seenProbes.has(url)) {
-        seenProbes.add(url);
-        probesBlocked++;
-        _debugCounter++;
-        if (_debugCounter <= 5 || _debugCounter % 100 === 0) {
-          console.log(`[Shield] Probe #${probesBlocked} (unique: ${seenProbes.size}): ${url.substring(0, 60)}`);
-        }
-        updateBadge();
-      }
-      return Promise.reject(new TypeError('LinkedIn Shield: extension probe blocked'));
+      if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
+      return Promise.resolve(new Response('', { status: 404 }));
     }
     // Count surveillance endpoints (blocking handled by rules.json at network level)
     const survPattern = matchSurveillanceUrl(url);
@@ -77,8 +66,7 @@
   if (originalGetEntries) {
     performance.getEntriesByName = function (name, ...rest) {
       if (typeof name === 'string' && (name.includes('chrome-extension://') || name.includes('moz-extension://'))) {
-        probesBlocked++;
-        updateBadge();
+        if (!seenProbes.has('perf:' + name)) { seenProbes.add('perf:' + name); probesBlocked++; updateBadge(); }
         return [];
       }
       return originalGetEntries.call(this, name, ...rest);
