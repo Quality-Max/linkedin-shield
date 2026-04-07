@@ -19,10 +19,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       timestamp: Date.now(),
     };
 
-    // Update badge
+    // Update badge and tooltip
     const total = msg.total || 0;
     chrome.action.setBadgeText({ text: total > 0 ? String(total) : '', tabId });
     chrome.action.setBadgeBackgroundColor({ color: total > 50 ? '#ef4444' : total > 10 ? '#f59e0b' : '#22c55e', tabId });
+    chrome.action.setTitle({
+      title: `LinkedIn Shield — ${total} blocked\n${msg.probes || 0} extension probes\n${msg.fingerprints || 0} fingerprint APIs spoofed\n${msg.trackers || 0} trackers blocked`,
+      tabId,
+    });
   }
 
   if (msg.type === 'get_stats') {
