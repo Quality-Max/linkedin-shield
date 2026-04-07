@@ -16,6 +16,8 @@
   let probeCount = 0;
   let scanComplete = false;
   let scanTimeout = null;
+  const probedExtensions = []; // Store first 20 probed extension IDs for context
+  const blockedUrls = []; // Store blocked surveillance URLs
 
   // ── 1. Block extension probing ──────────────────────────────────────
 
@@ -24,8 +26,17 @@
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
       probeCount++;
+      if (probedExtensions.length < 20) {
+        // Extract extension ID from URL
+        const match = url.match(/(?:chrome|moz)-extension:\/\/([^/]+)/);
+        if (match) probedExtensions.push(match[1]);
+      }
       resetScanTimer();
       return Promise.resolve(new Response('', { status: 404 }));
+    }
+    // Track blocked surveillance URLs
+    if (url.includes('sensorCollect') || url.includes('protechts') || url.includes('spectroscopy')) {
+      if (blockedUrls.length < 10) blockedUrls.push(url.substring(0, 100));
     }
     return originalFetch.apply(this, args);
   };
@@ -109,6 +120,12 @@
       fingerprints: fingerprints,
       trackers: trackers,
       total: total,
+      context: {
+        extensionIds: probedExtensions,
+        blockedUrls: blockedUrls,
+        fingerprintApis: ['navigator.hardwareConcurrency', 'navigator.deviceMemory', 'navigator.getBattery()'],
+        iframesRemoved: iframesRemoved,
+      },
     }, '*');
   }
 

@@ -17,6 +17,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       total: msg.total || 0,
       url: sender.tab.url,
       timestamp: Date.now(),
+      context: msg.context || null,
     };
 
     // Update badge and tooltip
@@ -79,13 +80,29 @@ async function handleAIAnalysis(stats) {
     return { error: 'No API key configured. Go to Settings to add one.' };
   }
 
-  const prompt = `You are a privacy security analyst. A user visited LinkedIn and the following tracking was detected:
+  const ctx = stats.context || {};
+  const extSample = (ctx.extensionIds || []).slice(0, 5).join(', ') || 'none captured';
+  const blockedSample = (ctx.blockedUrls || []).join('\n  ') || 'none';
+  const fpApis = (ctx.fingerprintApis || []).join(', ') || 'none';
 
-- Extension probes blocked: ${stats.probes || 0} (LinkedIn tried to detect installed browser extensions)
-- Device fingerprints blocked: ${stats.fingerprints || 0} (attempts to collect hardware/browser info)
-- Tracker requests blocked: ${stats.trackers || 0} (hidden tracking pixels, iframes, and beacons)
+  const prompt = `You are a privacy security analyst. A user visited LinkedIn and the following surveillance was detected and blocked:
 
-In 3-4 sentences, explain what data LinkedIn was trying to collect, the privacy risk if this wasn't blocked, and what this data could be used for. Be direct and factual.`;
+EXTENSION PROBING: ${stats.probes || 0} unique chrome-extension:// URLs probed (LinkedIn checking which extensions are installed)
+Sample extension IDs probed: ${extSample}
+
+DEVICE FINGERPRINTING: ${stats.fingerprints || 0} APIs intercepted and spoofed: ${fpApis}
+
+SURVEILLANCE ENDPOINTS BLOCKED: ${stats.trackers || 0}
+  ${blockedSample}
+
+HIDDEN IFRAMES: ${ctx.iframesRemoved || 0} invisible tracking iframes from HUMAN Security (protechts.net) removed
+
+Explain in 4-5 sentences:
+1. What specific data LinkedIn was trying to collect from this user
+2. What the extension probing reveals (job hunting tools, ad blockers, accessibility tools, etc.)
+3. How device fingerprinting creates a unique ID that follows you across sites
+4. The real-world privacy risk and what LinkedIn could do with this data
+Be specific to the numbers above. Direct and factual, no fluff.`;
 
   let apiBase, model, headers;
 

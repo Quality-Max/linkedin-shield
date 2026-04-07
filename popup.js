@@ -22,6 +22,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('fingerprints-count').textContent = stats.fingerprints || 0;
       document.getElementById('trackers-count').textContent = stats.trackers || 0;
       document.getElementById('total-count').textContent = stats.total || 0;
+
+      // Show context details
+      const ctx = stats.context;
+      if (ctx && stats.total > 0) {
+        const section = document.getElementById('context-section');
+        const details = document.getElementById('context-details');
+        section.style.display = 'block';
+
+        let html = '';
+        if (stats.probes > 0) {
+          html += `<div style="margin-bottom:6px;"><span style="color:#ef4444;">&#9632;</span> <strong>${stats.probes} extensions scanned</strong> — LinkedIn checked if you have job search tools, ad blockers, accessibility aids, sales tools, and more installed</div>`;
+        }
+        if (ctx.fingerprintApis && ctx.fingerprintApis.length > 0) {
+          html += `<div style="margin-bottom:6px;"><span style="color:#f59e0b;">&#9632;</span> <strong>Device fingerprinted</strong> — CPU cores, RAM size, and battery status spoofed with fake values</div>`;
+        }
+        if (stats.trackers > 0) {
+          html += `<div style="margin-bottom:6px;"><span style="color:#6366f1;">&#9632;</span> <strong>${stats.trackers} surveillance endpoints</strong> — sensorCollect telemetry and HUMAN Security tracking iframe blocked</div>`;
+        }
+        if (ctx.blockedUrls && ctx.blockedUrls.length > 0) {
+          html += `<div style="margin-top:6px; padding:6px 8px; background:#0d0d14; border-radius:4px; font-family:monospace; font-size:9px; color:#56546a; max-height:60px; overflow-y:auto;">`;
+          ctx.blockedUrls.forEach(u => { html += u + '<br>'; });
+          html += '</div>';
+        }
+        details.innerHTML = html;
+      }
     }
   });
 
