@@ -146,8 +146,7 @@
     const trackers = 2 + blockedUrls.filter(u => u.includes('iframe')).length;
     const total = probeCount + fingerprints + trackers;
 
-    window.postMessage({
-      type: 'linkedin_shield_stats',
+    const statsData = {
       probes: probeCount,
       fingerprints: fingerprints,
       trackers: trackers,
@@ -158,7 +157,13 @@
         fingerprintApis: ['navigator.hardwareConcurrency', 'navigator.deviceMemory', 'navigator.getBattery()'],
         iframesRemoved: blockedUrls.filter(u => u.includes('iframe')).length,
       },
-    }, '*');
+    };
+
+    // Store in DOM for popup to read directly
+    document.documentElement.setAttribute('data-linkedin-shield', JSON.stringify(statsData));
+
+    // Also try postMessage for bridge
+    window.postMessage({ type: 'linkedin_shield_stats', ...statsData }, '*');
   }
 
   // Fallback timers
