@@ -16,16 +16,25 @@
   Object.defineProperty(window, SHIELD_KEY, { value: true, writable: false, configurable: false });
   if (window !== window.top) return;
 
-  // ── 0. Suppress LinkedIn's noisy SDUI console warnings ──────────────
+  // ── 0. Suppress LinkedIn's noisy console spam ───────────────────────
   const nativeWarn = console.warn;
   const nativeError = console.error;
-  const sduiFilter = /BooleanExpression with operator|Attribute .* could not be converted to a proto/;
+  const linkedInNoise =
+    /BooleanExpression with operator|Attribute .* could not be converted to a proto|Minified React error|VIDEOJS: WARN|Highcharts warning/;
+  function isLinkedInNoise(args) {
+    const first = args[0];
+    if (typeof first === 'string' && linkedInNoise.test(first)) return true;
+    if (first instanceof Error && linkedInNoise.test(first.message)) return true;
+    // Check if error originates from LinkedIn's bundled scripts
+    if (first instanceof Error && first.stack && /licdn\.com|aero-v1/.test(first.stack)) return true;
+    return false;
+  }
   console.warn = function (...args) {
-    if (typeof args[0] === 'string' && sduiFilter.test(args[0])) return;
+    if (isLinkedInNoise(args)) return;
     return nativeWarn.apply(console, args);
   };
   console.error = function (...args) {
-    if (typeof args[0] === 'string' && sduiFilter.test(args[0])) return;
+    if (isLinkedInNoise(args)) return;
     return nativeError.apply(console, args);
   };
 
