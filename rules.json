@@ -1,15 +1,5 @@
 [
   {
-    "id": 1,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "*/li/track*",
-      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
-      "resourceTypes": ["xmlhttprequest", "ping", "other"]
-    }
-  },
-  {
     "id": 2,
     "priority": 1,
     "action": { "type": "block" },
@@ -25,15 +15,6 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "*protechts.net*",
-      "resourceTypes": ["sub_frame", "script", "xmlhttprequest", "image", "ping", "other"]
-    }
-  },
-  {
-    "id": 4,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "*li.protechts.net*",
       "resourceTypes": ["sub_frame", "script", "xmlhttprequest", "image", "ping", "other"]
     }
   },
@@ -65,16 +46,6 @@
       "urlFilter": "*fingerprintjs*",
       "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
       "resourceTypes": ["script", "xmlhttprequest"]
-    }
-  },
-  {
-    "id": 8,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "*realtime/connect*",
-      "initiatorDomains": ["linkedin.com", "www.linkedin.com"],
-      "resourceTypes": ["xmlhttprequest", "websocket"]
     }
   }
 ]

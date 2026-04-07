@@ -21,18 +21,28 @@
   // detect installed extensions. We intercept fetch/XMLHttpRequest and
   // block any request targeting chrome-extension:// or moz-extension://.
 
+  // Debug: log every 100th probe to console
+  let _debugCounter = 0;
+
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
-      if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
+      if (!seenProbes.has(url)) {
+        seenProbes.add(url);
+        probesBlocked++;
+        _debugCounter++;
+        if (_debugCounter <= 5 || _debugCounter % 100 === 0) {
+          console.log(`[Shield] Probe #${probesBlocked} (unique: ${seenProbes.size}): ${url.substring(0, 60)}`);
+        }
+        updateBadge();
+      }
       return Promise.reject(new TypeError('LinkedIn Shield: extension probe blocked'));
     }
-    // Block surveillance endpoints (not general tracking)
+    // Count surveillance endpoints (blocking handled by rules.json at network level)
     const survPattern = matchSurveillanceUrl(url);
-    if (survPattern) {
-      if (!seenTrackers.has(survPattern)) { seenTrackers.add(survPattern); trackersBlocked++; updateBadge(); }
-      return Promise.resolve(new Response('', { status: 204 }));
+    if (survPattern && !seenTrackers.has(survPattern)) {
+      seenTrackers.add(survPattern); trackersBlocked++; updateBadge();
     }
     return originalFetch.apply(this, args);
   };
@@ -46,10 +56,8 @@
         return;
       }
       const xhrSurvPattern = matchSurveillanceUrl(url);
-      if (xhrSurvPattern) {
-        if (!seenTrackers.has(xhrSurvPattern)) { seenTrackers.add(xhrSurvPattern); trackersBlocked++; updateBadge(); }
-        this._shieldBlocked = true;
-        return;
+      if (xhrSurvPattern && !seenTrackers.has(xhrSurvPattern)) {
+        seenTrackers.add(xhrSurvPattern); trackersBlocked++; updateBadge();
       }
     }
     return originalXHROpen.call(this, method, url, ...rest);
@@ -142,7 +150,8 @@
   // ── 5. Tracker URL detection ────────────────────────────────────────
 
   // Only block surveillance-specific endpoints, not general LinkedIn tracking
-  // Returns the pattern name if it's a surveillance URL, null otherwise
+  // These are already blocked at network level by rules.json — content script
+  // only counts them, doesn't need to block (avoids retry loops)
   function matchSurveillanceUrl(url) {
     const patterns = [
       'sensorCollect',
@@ -150,7 +159,6 @@
       'spectroscopy',
       'browser-id',
       'fingerprintjs',
-      '/platform-telemetry/',
     ];
     const lower = url.toLowerCase();
     for (const p of patterns) {
