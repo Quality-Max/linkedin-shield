@@ -43,29 +43,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to read stats:', e);
   }
 
-  // If still nothing, show known research numbers
+  // If still nothing, use zero defaults
   if (!stats) {
-    stats = {
-      probes: 0,
-      fingerprints: 3,
-      trackers: 2,
-      total: 5,
-      knownScanSize: 6236,
-      context: {
-        fingerprintApis: ['navigator.hardwareConcurrency', 'navigator.deviceMemory', 'navigator.getBattery()'],
-        detectionMethod: 'research-based',
-      },
-    };
+    stats = { probes: 0, fingerprints: 0, trackers: 0, total: 0 };
   }
 
-  // Render
+  // Render — show only real detected numbers
   const probes = stats.probes || 0;
-  const showKnown = probes === 0;
 
-  document.getElementById('probes-count').textContent = showKnown ? '~6.2K' : probes;
-  document.getElementById('fingerprints-count').textContent = stats.fingerprints || 3;
-  document.getElementById('trackers-count').textContent = stats.trackers || 2;
-  document.getElementById('total-count').textContent = showKnown ? '~6.2K' : stats.total || 0;
+  document.getElementById('probes-count').textContent = probes;
+  document.getElementById('fingerprints-count').textContent = stats.fingerprints || 0;
+  document.getElementById('trackers-count').textContent = stats.trackers || 0;
+  document.getElementById('total-count').textContent = stats.total || 0;
 
   // Context section
   const section = document.getElementById('context-section');
@@ -88,29 +77,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   details.textContent = '';
-  const probeRow = addContextRow(details, '#ef4444', `${showKnown ? '~6,236' : probes} extensions scanned`);
-  probeRow.style.marginBottom = '8px';
-  const probeTag = document.createElement('span');
-  probeTag.style.cssText = 'font-size:9px;color:#56546a;margin-left:4px;';
-  probeTag.textContent = showKnown ? '(BrowserGate research)' : '(detected)';
-  probeRow.appendChild(probeTag);
-
-  const desc = document.createElement('div');
-  desc.style.cssText = 'font-size:10px;color:#56546a;margin-left:14px;margin-bottom:8px;';
-  desc.textContent =
-    'LinkedIn checks for job search tools, ad blockers, password managers, VPNs, developer tools, and accessibility aids';
-  details.appendChild(desc);
-
+  addContextRow(details, '#ef4444', `${probes} extension probes blocked`);
   addContextRow(
     details,
     '#f59e0b',
-    `${stats.fingerprints || 3} fingerprint APIs spoofed`,
+    `${stats.fingerprints || 0} fingerprint APIs spoofed`,
     ' \u2014 CPU cores, RAM, battery',
   );
   addContextRow(
     details,
     '#6366f1',
-    `${stats.trackers || 2} surveillance endpoints blocked`,
+    `${stats.trackers || 0} surveillance endpoints blocked`,
     ' \u2014 sensorCollect + HUMAN Security',
   );
 
@@ -164,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const apiKey = settings.ai_api_key;
       const s = window._shieldStats || {};
 
-      const prompt = `A user visited LinkedIn. LinkedIn Shield blocked: ${s.probes || '~6,236'} extension probes, ${s.fingerprints || 3} fingerprint APIs spoofed, ${s.trackers || 2} tracker endpoints blocked. Explain in 3-4 sentences what LinkedIn was trying to collect, the privacy risk, and what this data could be used for. Be direct.`;
+      const prompt = `A user visited LinkedIn. LinkedIn Shield blocked: ${s.probes || 0} extension probes, ${s.fingerprints || 0} fingerprint APIs spoofed, ${s.trackers || 0} tracker endpoints blocked. Explain in 3-4 sentences what LinkedIn was trying to collect, the privacy risk, and what this data could be used for. Be direct.`;
 
       let text = '';
 
@@ -215,10 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Share button
   document.getElementById('share-btn').addEventListener('click', () => {
     const s = window._shieldStats || {};
-    const probeText =
-      s.probes > 0
-        ? `${s.probes} extension probes detected & blocked`
-        : '~6,236 known extension probes blocked (BrowserGate research)';
+    const probeText = `${s.probes || 0} extension probes blocked`;
     let text = `LinkedIn Shield blocked surveillance on my last visit:\n\n`;
     text += `🔍 ${probeText}\n`;
     text += `🖥️ ${s.fingerprints || 3} device fingerprints spoofed (CPU, RAM, battery)\n`;
