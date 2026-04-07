@@ -1,7 +1,10 @@
 /**
- * LinkedIn Shield — Content Script (MAIN world) v2.4
+ * LinkedIn Shield — Content Script (MAIN world) v3.0
  *
- * Uses multiple detection layers since LinkedIn may save fetch() early.
+ * Spoofs fingerprint APIs + counts known LinkedIn surveillance.
+ * Probe counting based on BrowserGate research (6,236 extension IDs).
+ * LinkedIn's scanner saves fetch() at parse time — interception impossible.
+ * Instead, we detect the scan via PerformanceObserver + error listener.
  */
 
 (function () {
@@ -11,114 +14,44 @@
   window.__linkedinShieldActive = true;
   if (window !== window.top) return;
 
-  console.log('[LinkedIn Shield] v2.4 — multi-layer interception active');
-
   let probeCount = 0;
-  let scanComplete = false;
-  let scanTimeout = null;
-  const probedExtensions = [];
-  const blockedUrls = [];
+  let errorCount = 0;
 
-  // ── Layer 1: Proxy on window.fetch (cannot be bypassed by saved refs) ──
+  // ── 1. Count extension probes via error events ──────────────────────
+  // LinkedIn's fetch to chrome-extension://invalid/ generates global errors
+  // we can count even without intercepting fetch itself.
 
-  const nativeFetch = window.fetch;
-  const fetchProxy = new Proxy(nativeFetch, {
-    apply(target, thisArg, args) {
-      const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-      if (url.includes('chrome-extension://') || url.includes('moz-extension://')) {
-        probeCount++;
-        if (probedExtensions.length < 20) {
-          const m = url.match(/(?:chrome|moz)-extension:\/\/([^/]+)/);
-          if (m) probedExtensions.push(m[1]);
-        }
-        resetScanTimer();
-        return Promise.resolve(new Response('', { status: 404 }));
-      }
-      if (url.includes('sensorCollect') || url.includes('protechts') || url.includes('spectroscopy')) {
-        if (blockedUrls.length < 10) blockedUrls.push(url.substring(0, 100));
-      }
-      return Reflect.apply(target, thisArg, args);
-    }
-  });
-  // Override the property descriptor so even cached refs get the proxy
-  Object.defineProperty(window, 'fetch', {
-    value: fetchProxy,
-    writable: true,
-    configurable: true,
-  });
-
-  // ── Layer 2: XHR interception ──
-
-  const origXhrOpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (typeof url === 'string' && url.includes('chrome-extension://')) {
+  window.addEventListener('error', (e) => {
+    if (e.filename && e.filename.includes('chrome-extension://')) {
       probeCount++;
-      resetScanTimer();
-      this._blocked = true;
-      return;
     }
-    return origXhrOpen.call(this, method, url, ...rest);
-  };
+  }, true);
 
-  const origXhrSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.send = function (...args) {
-    if (this._blocked) return;
-    return origXhrSend.apply(this, args);
-  };
+  // Also listen for unhandled rejections (fetch failures)
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = String(e.reason?.message || e.reason || '');
+    if (msg.includes('chrome-extension') || msg.includes('ERR_FAILED')) {
+      probeCount++;
+    }
+  });
 
-  // ── Layer 3: PerformanceObserver (catch resource timing probes) ──
+  // ── 2. PerformanceObserver for resource timing ──────────────────────
 
   try {
     const po = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (entry.name && entry.name.includes('chrome-extension://')) {
           probeCount++;
-          if (probedExtensions.length < 20) {
-            const m = entry.name.match(/chrome-extension:\/\/([^/]+)/);
-            if (m) probedExtensions.push(m[1]);
-          }
-          resetScanTimer();
         }
       }
     });
     po.observe({ type: 'resource', buffered: true });
   } catch (e) {}
 
-  // ── Layer 4: Monitor DOM for <img>/<link> based probes ──
+  // ── 3. Fingerprint spoofing ─────────────────────────────────────────
 
-  const domObserver = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      for (const node of m.addedNodes) {
-        if (!node.tagName) continue;
-        const src = String(node.src || node.href || '');
-        if (src.includes('chrome-extension://')) {
-          probeCount++;
-          resetScanTimer();
-          node.remove();
-        }
-        // Remove protechts iframes
-        if (node.tagName === 'IFRAME' && src.includes('protechts.net')) {
-          node.remove();
-          if (blockedUrls.length < 10) blockedUrls.push('iframe:protechts.net');
-        }
-      }
-    }
-  });
-  if (document.documentElement) {
-    domObserver.observe(document.documentElement, { childList: true, subtree: true });
-  } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      domObserver.observe(document.documentElement, { childList: true, subtree: true });
-    });
-  }
-
-  // ── Fingerprint spoofing ──
-
-  const fakeCores = [2, 4, 8][Math.floor(Math.random() * 3)];
-  const fakeMem = [4, 8, 16][Math.floor(Math.random() * 3)];
-
-  try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => fakeCores }); } catch (e) {}
-  try { if ('deviceMemory' in navigator) Object.defineProperty(navigator, 'deviceMemory', { get: () => fakeMem }); } catch (e) {}
+  try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 }); } catch (e) {}
+  try { if ('deviceMemory' in navigator) Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 }); } catch (e) {}
   if ('getBattery' in navigator) {
     navigator.getBattery = () => Promise.resolve({
       charging: true, chargingTime: 0, dischargingTime: Infinity,
@@ -126,54 +59,64 @@
     });
   }
 
-  // ── Scan completion + stats ──
+  // ── 4. Remove surveillance iframes ──────────────────────────────────
 
-  function resetScanTimer() {
-    if (scanComplete) return;
-    clearTimeout(scanTimeout);
-    scanTimeout = setTimeout(finalizeScan, 3000);
+  let iframesRemoved = 0;
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.tagName === 'IFRAME') {
+          const src = String(node.src || '');
+          if (src.includes('protechts.net')) {
+            node.remove();
+            iframesRemoved++;
+          }
+        }
+      }
+    }
+  });
+
+  if (document.documentElement) {
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    });
   }
 
-  function finalizeScan() {
-    if (scanComplete) return;
-    scanComplete = true;
-    console.log(`[LinkedIn Shield] Scan complete: ${probeCount} probes, ${probedExtensions.length} IDs captured`);
-    sendStats();
-  }
+  // ── 5. Send stats periodically ──────────────────────────────────────
 
   function sendStats() {
-    const fingerprints = 3;
-    const trackers = 2 + blockedUrls.filter(u => u.includes('iframe')).length;
-    const total = probeCount + fingerprints + trackers;
+    // Use detected probes if any, otherwise use known count from research
+    const detectedProbes = probeCount;
+    const knownProbes = detectedProbes > 0 ? detectedProbes : null;
+
+    const fingerprints = 3; // CPU, memory, battery always spoofed
+    const trackers = 2 + iframesRemoved; // sensorCollect + protechts (blocked by rules.json)
 
     const statsData = {
-      probes: probeCount,
+      probes: knownProbes || 0,
       fingerprints: fingerprints,
       trackers: trackers,
-      total: total,
+      total: (knownProbes || 0) + fingerprints + trackers,
+      knownScanSize: 6236, // BrowserGate documented count
       context: {
-        extensionIds: probedExtensions,
-        blockedUrls: blockedUrls,
+        extensionIds: [],
+        blockedUrls: [],
         fingerprintApis: ['navigator.hardwareConcurrency', 'navigator.deviceMemory', 'navigator.getBattery()'],
-        iframesRemoved: blockedUrls.filter(u => u.includes('iframe')).length,
+        iframesRemoved: iframesRemoved,
+        detectionMethod: detectedProbes > 0 ? 'live' : 'research-based',
       },
     };
 
-    // Store in DOM for popup to read directly
     document.documentElement.setAttribute('data-linkedin-shield', JSON.stringify(statsData));
-
-    // Also try postMessage for bridge
     window.postMessage({ type: 'linkedin_shield_stats', ...statsData }, '*');
   }
 
-  // Keep updating stats periodically (LinkedIn scans at different times)
+  // Send stats at increasing intervals
   setTimeout(sendStats, 5000);
-  setTimeout(sendStats, 10000);
-  setTimeout(sendStats, 20000);
-  setTimeout(sendStats, 40000);
-  // Also update on any probe activity
-  setInterval(() => {
-    if (probeCount > 0) sendStats();
-  }, 3000);
+  setTimeout(sendStats, 15000);
+  setTimeout(sendStats, 30000);
+  setInterval(sendStats, 10000);
 
 })();

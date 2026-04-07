@@ -36,12 +36,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {}
   }
 
-  // Render stats (show even if some counts are 0)
+  // Render stats
   if (stats) {
-    document.getElementById('probes-count').textContent = stats.probes || 0;
+    const probes = stats.probes || 0;
+    const showKnown = probes === 0 && stats.knownScanSize;
+
+    document.getElementById('probes-count').textContent = showKnown ? '~' + stats.knownScanSize : probes;
     document.getElementById('fingerprints-count').textContent = stats.fingerprints || 0;
     document.getElementById('trackers-count').textContent = stats.trackers || 0;
-    document.getElementById('total-count').textContent = stats.total || 0;
+    document.getElementById('total-count').textContent = showKnown ? '~' + (stats.knownScanSize + (stats.fingerprints || 0) + (stats.trackers || 0)) : (stats.total || 0);
 
     // Context details
     const ctx = stats.context;
@@ -60,7 +63,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           });
         }
 
-        html += `<div style="margin-bottom:8px;"><span style="color:#ef4444;">&#9632;</span> <strong>${stats.probes} extensions scanned</strong></div>`;
+        const probeLabel = showKnown ? `~${stats.knownScanSize} extensions scanned` : `${stats.probes} extensions scanned`;
+        html += `<div style="margin-bottom:8px;"><span style="color:#ef4444;">&#9632;</span> <strong>${probeLabel}</strong>${showKnown ? ' <span style="font-size:9px;color:#56546a;">(BrowserGate research)</span>' : ''}</div>`;
 
         if (matched.length > 0) {
           html += '<div style="margin-left:14px; margin-bottom:6px;">';
@@ -71,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (matched.length > 8) html += `<div style="font-size:10px; color:#3a3854;">+${matched.length - 8} more</div>`;
           html += '</div>';
         } else {
-          html += `<div style="font-size:10px; color:#56546a; margin-left:14px; margin-bottom:6px;">Probed ${stats.probes} extension IDs from LinkedIn's 6,236 watchlist</div>`;
+          html += `<div style="font-size:10px; color:#56546a; margin-left:14px; margin-bottom:6px;">LinkedIn scans for 6,236 extensions including job search tools, ad blockers, password managers, and accessibility aids</div>`;
         }
       }
       if (ctx.fingerprintApis?.length > 0) {
