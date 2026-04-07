@@ -13,6 +13,8 @@
   window.__linkedinShieldActive = true;
   if (window !== window.top) return;
 
+  console.log('[LinkedIn Shield] Content script active (MAIN world)');
+
   let probeCount = 0;
   let scanComplete = false;
   let scanTimeout = null;
@@ -129,7 +131,9 @@
     }, '*');
   }
 
-  // Fallback: send stats after 10s even if scan doesn't complete
-  setTimeout(() => { if (!scanComplete) finalizeScan(); }, 10000);
+  // Always send stats — even if 0 (so popup knows shield is active)
+  setTimeout(() => { if (!scanComplete) finalizeScan(); }, 5000);
+  // Second fallback
+  setTimeout(() => sendStats(), 15000);
 
 })();
