@@ -3,6 +3,18 @@
  * Tracks blocked probes, updates badge, handles AI analysis mode.
  */
 
+// ── Early injection: inject content.js into MAIN world before page scripts ──
+chrome.webNavigation?.onCommitted?.addListener((details) => {
+  if (details.frameId !== 0) return; // top frame only
+  if (!details.url.includes('linkedin.com')) return;
+  chrome.scripting.executeScript({
+    target: { tabId: details.tabId },
+    files: ['content.js'],
+    world: 'MAIN',
+    injectImmediately: true,
+  }).catch(() => {}); // Ignore errors on restricted pages
+}, { url: [{ hostContains: 'linkedin.com' }] });
+
 // Per-tab stats
 const tabStats = {};
 
