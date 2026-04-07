@@ -28,10 +28,10 @@
       if (!seenProbes.has(url)) { seenProbes.add(url); probesBlocked++; updateBadge(); }
       return Promise.reject(new TypeError('LinkedIn Shield: extension probe blocked'));
     }
-    // Block known tracking endpoints
-    if (isTrackerUrl(url)) {
-      const trackerKey = new URL(url, location.href).pathname;
-      if (!seenTrackers.has(trackerKey)) { seenTrackers.add(trackerKey); trackersBlocked++; updateBadge(); }
+    // Block surveillance endpoints (not general tracking)
+    const survPattern = matchSurveillanceUrl(url);
+    if (survPattern) {
+      if (!seenTrackers.has(survPattern)) { seenTrackers.add(survPattern); trackersBlocked++; updateBadge(); }
       return Promise.resolve(new Response('', { status: 204 }));
     }
     return originalFetch.apply(this, args);
@@ -45,8 +45,9 @@
         this._shieldBlocked = true;
         return;
       }
-      if (isTrackerUrl(url)) {
-        try { const k = new URL(url, location.href).pathname; if (!seenTrackers.has(k)) { seenTrackers.add(k); trackersBlocked++; updateBadge(); } } catch(e) {}
+      const xhrSurvPattern = matchSurveillanceUrl(url);
+      if (xhrSurvPattern) {
+        if (!seenTrackers.has(xhrSurvPattern)) { seenTrackers.add(xhrSurvPattern); trackersBlocked++; updateBadge(); }
         this._shieldBlocked = true;
         return;
       }
@@ -119,12 +120,10 @@
       for (const node of mutation.addedNodes) {
         if (node.tagName === 'IFRAME') {
           const src = node.src || node.getAttribute('src') || '';
-          if (src.includes('protechts.net') || src.includes('li.protechts') ||
-              (node.width === '0' && node.height === '0') ||
-              node.style.display === 'none' || node.style.width === '0px') {
+          const isSurveillance = src.includes('protechts.net') || src.includes('li.protechts');
+          if (isSurveillance) {
             node.remove();
-            trackersBlocked++;
-            updateBadge();
+            if (!seenTrackers.has('iframe:protechts')) { seenTrackers.add('iframe:protechts'); trackersBlocked++; updateBadge(); }
           }
         }
       }
@@ -142,33 +141,44 @@
 
   // ── 5. Tracker URL detection ────────────────────────────────────────
 
-  function isTrackerUrl(url) {
+  // Only block surveillance-specific endpoints, not general LinkedIn tracking
+  // Returns the pattern name if it's a surveillance URL, null otherwise
+  function matchSurveillanceUrl(url) {
     const patterns = [
-      '/li/track',
       'sensorCollect',
       'protechts.net',
       'spectroscopy',
       'browser-id',
       'fingerprintjs',
       '/platform-telemetry/',
-      '/realtime/frontBuzz498',
     ];
     const lower = url.toLowerCase();
-    return patterns.some(p => lower.includes(p));
+    for (const p of patterns) {
+      if (lower.includes(p)) return p;
+    }
+    return null;
   }
 
-  // ── 6. Badge / stats sync ───────────────────────────────────────────
+  function isTrackerUrl(url) {
+    return matchSurveillanceUrl(url) !== null;
+  }
 
+  // ── 6. Badge / stats sync (throttled) ──────────────────────────────
+
+  let badgeTimer = null;
   function updateBadge() {
-    const total = probesBlocked + fingerprintsBlocked + trackersBlocked;
-    // Post to bridge.js (ISOLATED world) which relays to background
-    window.postMessage({
-      type: 'linkedin_shield_stats',
-      probes: probesBlocked,
-      fingerprints: fingerprintsBlocked,
-      trackers: trackersBlocked,
-      total: total,
-    }, '*');
+    if (badgeTimer) return;
+    badgeTimer = setTimeout(() => {
+      badgeTimer = null;
+      const total = probesBlocked + fingerprintsBlocked + trackersBlocked;
+      window.postMessage({
+        type: 'linkedin_shield_stats',
+        probes: probesBlocked,
+        fingerprints: fingerprintsBlocked,
+        trackers: trackersBlocked,
+        total: total,
+      }, '*');
+    }, 500);
   }
 
   // Send initial stats after page settles
