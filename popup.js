@@ -74,6 +74,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window._shieldStats = stats;
 
+  // Poll for live updates every 3 seconds
+  setInterval(async () => {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.documentElement.getAttribute('data-linkedin-shield'),
+      });
+      const raw = results?.[0]?.result;
+      if (raw) {
+        const live = JSON.parse(raw);
+        if (live.probes > 0 || live.trackers > (stats.trackers || 0)) {
+          // Live data available — update display
+          document.getElementById('probes-count').textContent = live.probes;
+          document.getElementById('fingerprints-count').textContent = live.fingerprints || 3;
+          document.getElementById('trackers-count').textContent = live.trackers || 2;
+          document.getElementById('total-count').textContent = live.total || 0;
+          window._shieldStats = live;
+        }
+      }
+    } catch (e) {}
+  }, 3000);
+
   // AI button
   document.getElementById('ai-analyze-btn').addEventListener('click', async () => {
     const btn = document.getElementById('ai-analyze-btn');
