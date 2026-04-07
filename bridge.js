@@ -7,6 +7,7 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   if (event.data?.type === 'linkedin_shield_stats') {
     try {
+      if (!chrome.runtime?.sendMessage) return;
       chrome.runtime.sendMessage({
         type: 'shield_stats',
         probes: event.data.probes || 0,
@@ -15,8 +16,8 @@ window.addEventListener('message', (event) => {
         total: event.data.total || 0,
         context: event.data.context || null,
       });
-    } catch (e) {
-      console.warn('[LinkedIn Shield Bridge] Failed to relay:', e.message);
+    } catch (_e) {
+      // Extension context invalidated (reload/update) — silently ignore
     }
   }
 });
