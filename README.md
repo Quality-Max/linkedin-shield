@@ -1,5 +1,7 @@
 # LinkedIn Shield
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee)](https://buymeacoffee.com/qualitymax)
+
 Block LinkedIn's hidden extension scanning, device fingerprinting, and tracker probes.
 
 **Open-source. No tracking. No account required.**
