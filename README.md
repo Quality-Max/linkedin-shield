@@ -97,3 +97,9 @@ MIT
 ---
 
 Built by [QualityMax](https://qualitymax.io) — AI-native test automation for engineering teams.
+
+## Repository scope
+
+LinkedIn Shield is a separate browser privacy utility. It is not part of the QualityMax test execution platform.
+
+For the QA platform and its maintained testing tools, see the [QualityMax directory](https://github.com/Quality-Max/qualitymax).
